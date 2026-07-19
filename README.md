@@ -37,6 +37,10 @@ docker-compose up --build
 ```
 L'application sera accessible sur le port `8501`.
 
+> 🛠️ **Dépannage Render (Déploiement Cloud)** :
+> - **Redémarrages intempestifs (`Stopping...`)** : Render détecte parfois les ports ouverts par Playwright (Chrome) et redémarre le conteneur par erreur. Fixez le port en ajoutant la variable d'environnement `PORT=8501` sur Render.
+> - **Erreur `[Errno 24] inotify instance limit reached`** : Le système manque de mémoire/processus pour surveiller les fichiers (hot-reloading Streamlit). Désactivez la surveillance en ajoutant la variable `STREAMLIT_SERVER_FILE_WATCHER_TYPE=none` (déjà patché dans le Dockerfile).
+
 ### Déploiement Serveur (Lightning AI)
 1. Installez les dépendances (`requirements.txt`).
 2. Démarrez l'API :
