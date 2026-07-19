@@ -7,6 +7,10 @@ import time
 import mlflow
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel
+try:
+    from vllm import LLM, SamplingParams
+except ImportError:
+    pass
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 
@@ -38,13 +42,18 @@ async def startup_event():
     biobert_tokenizer = AutoTokenizer.from_pretrained(BIOBERT_MODEL)
     biobert_model = AutoModel.from_pretrained(BIOBERT_MODEL).to(device)
     
-    print(f"Chargement {QWEN_MODEL} (LLM Génératif)...")
+    print(f"Chargement {QWEN_MODEL} (LLM Génératif) avec vLLM...")
     qwen_tokenizer = AutoTokenizer.from_pretrained(QWEN_MODEL)
-    qwen_model = AutoModelForCausalLM.from_pretrained(
-        QWEN_MODEL, 
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32, 
-        device_map="auto"
-    )
+    try:
+        # gpu_memory_utilization = 0.7 laisse 30% de VRAM pour BioBERT
+        qwen_model = LLM(model=QWEN_MODEL, gpu_memory_utilization=0.7)
+    except NameError:
+        # Fallback CPU si vLLM n'est pas installé (ex: test local)
+        qwen_model = AutoModelForCausalLM.from_pretrained(
+            QWEN_MODEL, 
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32, 
+            device_map="auto"
+        )
     
     print("Connexion Supabase...")
     conn = psycopg2.connect(SUPABASE_DB_URL)
@@ -146,16 +155,22 @@ Response (JSON only):
         ]
         
         text_prompt = qwen_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        model_inputs = qwen_tokenizer([text_prompt], return_tensors="pt").to(device)
 
         print(f"Génération Qwen pour {disease}...")
-        with torch.no_grad():
-            generated_ids = qwen_model.generate(model_inputs.input_ids, max_new_tokens=2048, temperature=0.1)
-            
-        generated_ids = [
-            output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
-        response_json = qwen_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        try:
+            # vLLM path
+            sampling_params = SamplingParams(temperature=0.1, max_tokens=2048)
+            outputs = qwen_model.generate([text_prompt], sampling_params)
+            response_json = outputs[0].outputs[0].text
+        except AttributeError:
+            # Fallback transformers path
+            model_inputs = qwen_tokenizer([text_prompt], return_tensors="pt").to(device)
+            with torch.no_grad():
+                generated_ids = qwen_model.generate(model_inputs.input_ids, max_new_tokens=2048, temperature=0.1)
+            generated_ids = [
+                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+            ]
+            response_json = qwen_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         
         latency = time.time() - start_time
         
@@ -236,16 +251,22 @@ Answer:"""
         ]
         
         text_prompt = qwen_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        model_inputs = qwen_tokenizer([text_prompt], return_tensors="pt").to(device)
 
         print(f"Génération RAG pour: {question}...")
-        with torch.no_grad():
-            generated_ids = qwen_model.generate(model_inputs.input_ids, max_new_tokens=512, temperature=0.3)
-            
-        generated_ids = [
-            output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
-        answer = qwen_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        try:
+            # vLLM path
+            sampling_params = SamplingParams(temperature=0.3, max_tokens=512)
+            outputs = qwen_model.generate([text_prompt], sampling_params)
+            answer = outputs[0].outputs[0].text
+        except AttributeError:
+            # Fallback transformers path
+            model_inputs = qwen_tokenizer([text_prompt], return_tensors="pt").to(device)
+            with torch.no_grad():
+                generated_ids = qwen_model.generate(model_inputs.input_ids, max_new_tokens=512, temperature=0.3)
+            generated_ids = [
+                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+            ]
+            answer = qwen_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
         
         latency = time.time() - start_time
         with mlflow.start_run():
