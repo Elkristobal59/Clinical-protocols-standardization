@@ -16,6 +16,7 @@ L'application suit une architecture Client/Serveur découplée :
 1. **Onglet 1 : Ingestion & Extraction**
    - Entrez une maladie (ex: *Cardiology*, *Breast Cancer*).
    - L'application scrape automatiquement ClinicalTrials, télécharge les PDF, les envoie au serveur GPU, génère les embeddings et extrait les informations cibles (Condition, Médicaments, Critères d'inclusion) dans un format JSON structuré.
+   - **Mise à jour NER (Named Entity Recognition)** : L'extraction s'appuie désormais sur un "prompt strict" issu du benchmark Chia, permettant de classer finement les entités (Condition, Drug, Procedure, Measurement, etc.) et de réduire drastiquement les hallucinations.
 2. **Onglet 2 : Chatbot RAG (Retrieval-Augmented Generation)**
    - Posez des questions en langage naturel sur la base de connaissances constituée des protocoles cliniques.
    - Les réponses générées sont basées **uniquement** sur les extraits sémantiques trouvés (affichage des sources de décision).

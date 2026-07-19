@@ -149,16 +149,26 @@ async def process_pdf(
         context = "\n\n".join([f"Extrait:\n{r[0]}" for r in results])
         
         # --- 4. EXTRACTION (REDUCE - Qwen) ---
-        prompt = f"""You are a clinical trials expert. Extract the medications and patient inclusion criteria for {disease} from the following text extracts.
-Format your answer in clear JSON format: {{"condition": "...", "medications": [...], "inclusion_criteria": "..."}}
+        system_prompt = """Tu es un extracteur d'entités médicales. Ta seule tâche est de REPÉRER dans le texte fourni les portions de texte correspondant aux types d'entités autorisés, et de les recopier EXACTEMENT telles qu'elles apparaissent.
 
-Context Extracts:
-{context}
+RÈGLES ABSOLUES :
+1. N'extrais QUE du texte présent mot pour mot dans l'entrée. Ne reformule pas, ne traduis pas, n'explique pas, ne définis rien.
+2. Si aucune entité n'est présente, renvoie une liste vide [].
+3. N'invente jamais d'information absente du texte. Aucune définition, aucun commentaire.
+4. Utilise UNIQUEMENT ces types : Condition, Drug, Procedure, Measurement, Value, Temporal, Observation, Person, Device. Jamais "N/A", jamais un autre type.
+5. Réponds UNIQUEMENT par un JSON valide (une liste), sans texte autour, sans balise Markdown.
 
-Response (JSON only):
-"""
+FORMAT : [{"text": "<portion exacte>", "type": "<type autorisé>"}]"""
+
+        fewshot_user = 'Texte :\n"""\nPatients aged 18 years or older with type 2 diabetes and HbA1c >= 7.0%, not currently treated with insulin.\n"""\nRenvoie la liste JSON des entités.'
+        fewshot_assistant = '[{"text": "18 years or older", "type": "Person"}, {"text": "type 2 diabetes", "type": "Condition"}, {"text": "HbA1c >= 7.0%", "type": "Measurement"}, {"text": "insulin", "type": "Drug"}]'
+
+        prompt = f'Texte :\n"""\n{context}\n"""\nRenvoie la liste JSON des entités pour la maladie ciblée : {disease}.'
+
         messages = [
-            {"role": "system", "content": "You are a helpful and precise medical AI assistant."},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": fewshot_user},
+            {"role": "assistant", "content": fewshot_assistant},
             {"role": "user", "content": prompt}
         ]
         

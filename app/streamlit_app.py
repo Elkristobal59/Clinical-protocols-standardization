@@ -95,18 +95,25 @@ with tab1:
                         extraction = res.get("extraction", {})
                         
                         with st.expander(f"📄 Essai: {doc_id} - Pathologie: {res.get('disease')}", expanded=True):
-                            if isinstance(extraction, dict):
-                                st.markdown(f"**Condition traitée :** {extraction.get('condition', 'N/A')}")
-                                st.markdown("**Médicaments extraits :**")
-                                for m in extraction.get("medications", []):
-                                    st.write(f"- **{m.get('name', 'N/A')}**: {m.get('description', '')}")
-                                st.markdown("**Critères d'inclusion :**")
-                                for c in extraction.get("inclusion_criteria", []):
-                                    # Handle different possible JSON formats from Qwen
-                                    if isinstance(c, dict):
-                                        st.write(f"- {c.get('description', c.get('name', ''))}")
-                                    else:
-                                        st.write(f"- {c}")
+                            if isinstance(extraction, list):
+                                # Grouper par type d'entité
+                                grouped_entities = {}
+                                for ent in extraction:
+                                    if isinstance(ent, dict) and "type" in ent and "text" in ent:
+                                        ent_type = ent["type"]
+                                        ent_text = ent["text"]
+                                        if ent_type not in grouped_entities:
+                                            grouped_entities[ent_type] = set()
+                                        grouped_entities[ent_type].add(ent_text)
+                                
+                                if not grouped_entities:
+                                    st.info("Aucune entité trouvée ou format inattendu.")
+                                else:
+                                    # Afficher chaque groupe
+                                    for ent_type, texts in grouped_entities.items():
+                                        st.markdown(f"**{ent_type} :**")
+                                        for t in texts:
+                                            st.write(f"- {t}")
                             else:
                                 st.text(extraction)
 
