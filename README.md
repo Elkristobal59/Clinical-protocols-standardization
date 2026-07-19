@@ -70,11 +70,18 @@ L'application sera accessible sur le port `8501`.
    >   fuser -k 8000/tcp
    >   ```
 
-3. Exposez le port (via localtunnel) avec un sous-domaine fixe pour ne pas avoir à changer la variable d'environnement du frontend tous les jours :
-   ```bash
-   lt --port 8000 --subdomain protocole-clinique-api
-   ```
-4. Renseignez l'URL générée (`https://protocole-clinique-api.loca.lt`) dans la variable d'environnement `LIGHTNING_AI_API_URL` de votre client web (sur Render).
+3. Exposez le port via localtunnel :
+   - **Option A (Recommandée)** : Utilisez un sous-domaine fixe pour ne pas avoir à modifier la configuration de votre frontend tous les jours. Choisissez un nom **unique** :
+     ```bash
+     lt --port 8000 --subdomain api-clinique-votre-nom
+     ```
+     *(💡 Note : Si le sous-domaine est déjà pris ou bloqué par un ancien crash, localtunnel l'ignorera et vous donnera une adresse aléatoire à la place).*
+   - **Option B (Aléatoire)** : Génère une URL unique à chaque fois :
+     ```bash
+     lt --port 8000
+     ```
+
+4. Renseignez l'URL générée (ex: `https://api-clinique-votre-nom.loca.lt`) dans la variable d'environnement `LIGHTNING_AI_API_URL` de votre client web (sur Render), ou modifiez-la directement dans le champ de texte sur l'interface Streamlit.
 
 ### Infrastructure as Code (Terraform)
 Le dossier `terraform/` contient les scripts pour générer la structure de la base de données Supabase automatiquement (`main.tf`, `schema.sql`).
