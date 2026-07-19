@@ -60,9 +60,8 @@ async def startup_event():
         print("Mode CPU ou Fallback -> Activation de Transformers...")
         qwen_model = AutoModelForCausalLM.from_pretrained(
             QWEN_MODEL, 
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32, 
-            device_map="auto"
-        )
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        ).to(device)
     
     print("Connexion Supabase...")
     conn = psycopg2.connect(SUPABASE_DB_URL)
