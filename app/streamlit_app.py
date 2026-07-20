@@ -102,28 +102,43 @@ with tab1:
                 output_dir = os.path.abspath(f"data/live_pdfs_{query.replace(' ', '_')}")
                 os.makedirs(output_dir, exist_ok=True)
                 
-                # Appeler l'API officielle
-                api_url_ct = f"https://clinicaltrials.gov/api/v2/studies?query.cond={query}&pageSize={max_results}&fields=NCTId,ProtocolSection"
-                try:
-                    resp = requests.get(api_url_ct, timeout=10)
-                    ct_data = resp.json()
-                    studies = ct_data.get("studies", [])
-                except Exception as e:
-                    studies = []
-                    st.error(f"Erreur API ClinicalTrials: {e}")
-                
                 tasks = []
-                for study in studies:
-                    nct_id = study.get("protocolSection", {}).get("identificationModule", {}).get("nctId")
+                # Appeler l'API officielle
+                if force_pdf:
+                    # Si on force le PDF, il faut chercher des essais qui ont VRAIMENT un PDF attaché
+                    api_url_ct = f"https://clinicaltrials.gov/api/v2/studies?query.cond={query}&pageSize=50&fields=NCTId,ProtocolSection,DocumentSection"
                     try:
-                        eligibility = study["protocolSection"]["eligibilityModule"]["eligibilityCriteria"]
-                        if len(eligibility) > 100 and not force_pdf:
-                            tasks.append({"type": "text", "nct_id": nct_id, "text": eligibility})
-                            continue
-                    except KeyError:
-                        pass
-                    # Fallback sur le PDF
-                    tasks.append({"type": "pdf", "nct_id": nct_id})
+                        resp = requests.get(api_url_ct, timeout=10)
+                        studies = resp.json().get("studies", [])
+                        for study in studies:
+                            nct_id = study.get("protocolSection", {}).get("identificationModule", {}).get("nctId")
+                            docs = study.get("documentSection", {}).get("largeDocumentModule", {}).get("largeDocs", [])
+                            has_pdf = any(str(d.get("filename", "")).lower().endswith(".pdf") for d in docs)
+                            if has_pdf:
+                                tasks.append({"type": "pdf", "nct_id": nct_id})
+                            if len(tasks) >= max_results:
+                                break
+                    except Exception as e:
+                        st.error(f"Erreur API ClinicalTrials: {e}")
+                else:
+                    # Recherche standard (priorité au texte)
+                    api_url_ct = f"https://clinicaltrials.gov/api/v2/studies?query.cond={query}&pageSize={max_results}&fields=NCTId,ProtocolSection"
+                    try:
+                        resp = requests.get(api_url_ct, timeout=10)
+                        studies = resp.json().get("studies", [])
+                        for study in studies:
+                            nct_id = study.get("protocolSection", {}).get("identificationModule", {}).get("nctId")
+                            try:
+                                eligibility = study["protocolSection"]["eligibilityModule"]["eligibilityCriteria"]
+                                if len(eligibility) > 100:
+                                    tasks.append({"type": "text", "nct_id": nct_id, "text": eligibility})
+                                    continue
+                            except KeyError:
+                                pass
+                            # Fallback sur le PDF si pas de texte (rare, et échouera s'il n'y a pas de PDF)
+                            tasks.append({"type": "pdf", "nct_id": nct_id})
+                    except Exception as e:
+                        st.error(f"Erreur API ClinicalTrials: {e}")
                 
                 st.success(f"✅ Données récupérées (ou identifiées) en {time.time() - start_time:.1f}s")
                 
