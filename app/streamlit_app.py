@@ -22,7 +22,9 @@ except ImportError:
 st.set_page_config(page_title="Essais Cliniques IA", page_icon="🫀", layout="wide")
 
 # Image d'en-tête (Bannière médicale tech)
-st.image("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=2000", use_container_width=True)
+banner_path = os.path.join(os.path.dirname(__file__), "assets", "dashboard_medical.jpg")
+if os.path.exists(banner_path):
+    st.image(banner_path, use_container_width=True)
 
 st.title("🫀 Moteur d'Extraction & Chatbot Clinique")
 st.markdown("### Architecture de bout en bout (Pipeline Full BioBERT)")
@@ -159,7 +161,8 @@ with tab1:
 
 with tab2:
     st.header("2. Assistant Chatbot RAG")
-    st.image("https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=2000", use_container_width=True)
+    if os.path.exists(banner_path):
+        st.image(banner_path, use_container_width=True)
     st.markdown("Posez vos questions sur les essais cliniques indexés en base.")
     
     doc_filter = st.selectbox("Filtrer par essai clinique (Optionnel) :", ["Toute la base"] + st.session_state.extracted_docs)
