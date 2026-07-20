@@ -166,7 +166,7 @@ with tab1:
                                     with open(pdf_path, "rb") as f:
                                         response = requests.post(
                                             f"{api_url}/process_pdf",
-                                            files={"file": (os.path.basename(pdf_path), f, "application/pdf")},
+                                            files={"file": (f"{nct_id}.pdf", f, "application/pdf")},
                                             data={"disease": query},
                                             headers={"Bypass-Tunnel-Reminder": "true"}
                                         )
