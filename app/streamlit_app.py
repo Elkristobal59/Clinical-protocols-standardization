@@ -58,10 +58,10 @@ with st.sidebar.expander("📌 Objectifs & Contexte", expanded=False):
 
 with st.sidebar.expander("⚙️ Architecture (Backbone)", expanded=False):
     st.markdown("""
-    Extraction d’entités standardisées (NER) de protocoles cliniques à partir d’un corpus (taxonomies médicales = Chia) appris par un modèle (ex: BioBERT/RoBERTa-MIMIC) :
-    - **Entrées :** protocoles (JSON), modèles NLP
+    Extraction d’entités standardisées (NER) de protocoles cliniques à partir d’un corpus (taxonomies médicales = Chia) appris par un modèle **BioBERT** :
+    - **Entrées :** protocoles (JSON), modèle NLP BioBERT
     - **Sorties :** JSON avec les entités extraites et leurs relations
-    - **Objectif métier :** À partir des entités extraites, filtrer les études cliniques selon des critères spécifiques (âge, maladie, traitement).
+    - **Objectif métier :** Structurer les données cliniques brutes pour permettre à un assistant conversationnel (RAG) d'interroger et de cibler précisément les informations pertinentes (maladie, traitement, critères d'inclusion).
     """)
 
 with st.sidebar.expander("🚀 Extensions (Nice to have)", expanded=False):
