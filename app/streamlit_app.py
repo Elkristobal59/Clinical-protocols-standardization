@@ -177,14 +177,20 @@ with tab1:
                             if response.status_code == 200:
                                 data = response.json()
                                 try:
-                                    # Essayer de parser le JSON (même si le LLM a oublié quelques virgules)
-                                    cleaned_ext = data["extraction"].replace('"\n"', '",\n"').replace(']\n"', '],\n"').replace('}\n"', '},\n"')
+                                    raw_text = data["extraction"].strip()
+                                    # Nettoyage des backticks markdown (ex: ```json ... ```)
+                                    import re
+                                    json_match = re.search(r'(\{.*\})', raw_text, re.DOTALL)
+                                    if json_match:
+                                        raw_text = json_match.group(1)
+                                    
+                                    cleaned_ext = raw_text.replace('"\n"', '",\n"').replace(']\n"', '],\n"').replace('}\n"', '},\n"')
                                     data["extraction"] = json.loads(cleaned_ext)
                                 except:
                                     try:
-                                        data["extraction"] = json.loads(data["extraction"])
+                                        data["extraction"] = json.loads(raw_text)
                                     except:
-                                        pass
+                                        data["extraction"] = {"erreur": "Le LLM n'a pas retourné un JSON valide", "raw_output": raw_text}
                                 results.append(data)
                                 st.session_state.extracted_docs.append(data["document"])
                             else:
