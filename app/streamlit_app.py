@@ -25,7 +25,9 @@ st.set_page_config(page_title="Essais Cliniques IA", page_icon="🫀", layout="w
 # Image d'en-tête (Bannière médicale tech)
 banner_path = os.path.join(os.path.dirname(__file__), "assets", "dashboard_medical.jpg")
 if os.path.exists(banner_path):
-    st.image(banner_path, use_container_width=True)
+    _, col_img, _ = st.columns([1, 2, 1])
+    with col_img:
+        st.image(banner_path, use_container_width=True)
 
 st.title("🫀 Moteur d'Extraction & Chatbot Clinique")
 st.markdown("### Architecture de bout en bout (Pipeline Full BioBERT)")
