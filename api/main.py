@@ -26,6 +26,7 @@ QWEN_MODEL = "Qwen/Qwen1.5-1.8B-Chat"
 device = None
 biobert_tokenizer = None
 biobert_model = None
+biobert_ner_pipeline = None
 qwen_tokenizer = None
 qwen_model = None
 conn = None
@@ -34,7 +35,7 @@ is_vllm = False
 @app.on_event("startup")
 async def startup_event():
     """Charge les modèles lourds en RAM/VRAM une seule fois au démarrage."""
-    global device, biobert_tokenizer, biobert_model, qwen_tokenizer, qwen_model, conn, is_vllm
+    global device, biobert_tokenizer, biobert_model, biobert_ner_pipeline, qwen_tokenizer, qwen_model, conn, is_vllm
     
     print("Initialisation du pipeline sur GPU...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -42,6 +43,15 @@ async def startup_event():
     print(f"Chargement {BIOBERT_MODEL} (Embeddings)...")
     biobert_tokenizer = AutoTokenizer.from_pretrained(BIOBERT_MODEL)
     biobert_model = AutoModel.from_pretrained(BIOBERT_MODEL).to(device)
+    
+    print("Chargement BioBERT-NER (Extraction)...")
+    from transformers import pipeline
+    biobert_ner_pipeline = pipeline(
+        "token-classification",
+        model="docs/02_benchmark/biobert-chia-ner",
+        aggregation_strategy="simple",
+        device=0 if torch.cuda.is_available() else -1
+    )
     
     print(f"Chargement {QWEN_MODEL} (LLM Génératif)...")
     qwen_tokenizer = AutoTokenizer.from_pretrained(QWEN_MODEL)
@@ -146,50 +156,23 @@ async def process_pdf(
         if not results:
             raise HTTPException(status_code=404, detail="Aucun texte trouvé pour ce document.")
             
-        context = "\n\n".join([f"Extrait:\n{r[0]}" for r in results])
+        # --- 4. EXTRACTION (REDUCE - BioBERT NER) ---
+        print(f"Extraction BioBERT-NER pour {disease}...")
         
-        # --- 4. EXTRACTION (REDUCE - Qwen) ---
-        system_prompt = """Tu es un extracteur d'entités médicales. Ta seule tâche est de REPÉRER dans le texte fourni les portions de texte correspondant aux types d'entités autorisés, et de les recopier EXACTEMENT telles qu'elles apparaissent.
-
-RÈGLES ABSOLUES :
-1. N'extrais QUE du texte présent mot pour mot dans l'entrée. Ne reformule pas, ne traduis pas, n'explique pas, ne définis rien.
-2. Si aucune entité n'est présente, renvoie une liste vide [].
-3. N'invente jamais d'information absente du texte. Aucune définition, aucun commentaire.
-4. Utilise UNIQUEMENT ces types : Condition, Drug, Procedure, Measurement, Value, Temporal, Observation, Person, Device. Jamais "N/A", jamais un autre type.
-5. Réponds UNIQUEMENT par un JSON valide (une liste), sans texte autour, sans balise Markdown.
-
-FORMAT : [{"text": "<portion exacte>", "type": "<type autorisé>"}]"""
-
-        fewshot_user = 'Texte :\n"""\nPatients aged 18 years or older with type 2 diabetes and HbA1c >= 7.0%, not currently treated with insulin.\n"""\nRenvoie la liste JSON des entités.'
-        fewshot_assistant = '[{"text": "18 years or older", "type": "Person"}, {"text": "type 2 diabetes", "type": "Condition"}, {"text": "HbA1c >= 7.0%", "type": "Measurement"}, {"text": "insulin", "type": "Drug"}]'
-
-        prompt = f'Texte :\n"""\n{context}\n"""\nRenvoie la liste JSON des entités pour la maladie ciblée : {disease}.'
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": fewshot_user},
-            {"role": "assistant", "content": fewshot_assistant},
-            {"role": "user", "content": prompt}
-        ]
+        CONTENT = ["Condition", "Drug", "Procedure", "Measurement", "Value", "Temporal", "Observation", "Person", "Device"]
+        extraction = []
+        seen = set()
         
-        text_prompt = qwen_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-        print(f"Génération Qwen pour {disease}...")
-        
-        if is_vllm:
-            # vLLM path
-            sampling_params = SamplingParams(temperature=0.1, max_tokens=2048)
-            outputs = qwen_model.generate([text_prompt], sampling_params)
-            response_json = outputs[0].outputs[0].text
-        else:
-            # Fallback transformers path
-            model_inputs = qwen_tokenizer([text_prompt], return_tensors="pt").to(device)
-            with torch.no_grad():
-                generated_ids = qwen_model.generate(model_inputs.input_ids, max_new_tokens=2048, temperature=0.1)
-            generated_ids = [
-                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-            ]
-            response_json = qwen_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        for r in results:
+            seg = r[0]
+            for e in biobert_ner_pipeline(seg):
+                ty = e.get("entity_group")
+                w = e.get("word", "").strip()
+                if ty in CONTENT and w and (w.lower(), ty) not in seen:
+                    seen.add((w.lower(), ty))
+                    extraction.append({"text": w, "type": ty})
+                    
+        response_json = extraction
         
         latency = time.time() - start_time
         
@@ -197,10 +180,10 @@ FORMAT : [{"text": "<portion exacte>", "type": "<type autorisé>"}]"""
         with mlflow.start_run():
             mlflow.log_param("disease", disease)
             mlflow.log_param("document", filename)
-            mlflow.log_param("model", QWEN_MODEL)
+            mlflow.log_param("model", "biobert-chia-ner")
             mlflow.log_metric("latency_sec", latency)
-            mlflow.log_text(prompt, "prompt.txt")
-            mlflow.log_text(response_json, "response.json")
+            import json
+            mlflow.log_text(json.dumps(response_json, ensure_ascii=False), "response.json")
             
         return {"status": "success", "disease": disease, "document": filename, "extraction": response_json}
 
