@@ -161,8 +161,6 @@ with tab1:
 
 with tab2:
     st.header("2. Assistant Chatbot RAG")
-    if os.path.exists(banner_path):
-        st.image(banner_path, use_container_width=True)
     st.markdown("Posez vos questions sur les essais cliniques indexés en base.")
     
     doc_filter = st.selectbox("Filtrer par essai clinique (Optionnel) :", ["Toute la base"] + st.session_state.extracted_docs)
