@@ -103,7 +103,7 @@ with tab1:
             if not pdfs:
                 st.warning("Aucun PDF trouvé lors du scraping.")
             else:
-                with st.spinner(f"Étape 2/2 : Envoi de {len(pdfs)} PDF(s) au serveur GPU (BioBERT + Qwen) & MLflow..."):
+                with st.spinner(f"Étape 2/2 : Envoi de {len(pdfs)} PDF(s) au serveur GPU (Full BioBERT) & MLflow..."):
                     start_time = time.time()
                     results = []
                     for pdf in pdfs:
