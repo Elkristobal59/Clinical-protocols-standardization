@@ -115,55 +115,49 @@ def run_scraper(condition: str, max_results: int = 5) -> str:
 
 def download_pdf_for_nctid(nct_id: str, output_dir: str) -> str:
     """
-    Télécharge le PDF pour un NCT ID spécifique.
+    Télécharge le PDF pour un NCT ID spécifique via l'API v2 (sans Playwright, ultra-robuste).
     Retourne le chemin du fichier téléchargé ou None si échec.
     """
+    import requests
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
         
-    import threading
-    if threading.current_thread() != threading.main_thread():
-        # Subprocess to avoid asyncio loop issues in Streamlit
-        import subprocess, sys
-        res = subprocess.run([sys.executable, __file__, "FETCH_ID", nct_id, output_dir], capture_output=True, text=True)
-        # Parse output for filepath
-        for line in res.stdout.split('\n'):
-            if line.startswith("DOWNLOADED:"):
-                return line.split("DOWNLOADED:")[1].strip()
-        return None
-
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            study_url = f"https://clinicaltrials.gov/study/{nct_id}"
+        # Chercher le DocumentSection dans l'API v2
+        res = requests.get(f"https://clinicaltrials.gov/api/v2/studies/{nct_id}?fields=DocumentSection", timeout=10)
+        data = res.json()
+        docs = data.get("documentSection", {}).get("largeDocumentModule", {}).get("largeDocs", [])
+        
+        pdf_filename = None
+        for doc in docs:
+            if str(doc.get("filename", "")).lower().endswith(".pdf"):
+                pdf_filename = doc.get("filename")
+                break
+                
+        if not pdf_filename:
+            print(f"Aucun PDF attaché trouvé pour {nct_id} sur ClinicalTrials.gov")
+            return None
             
-            page.goto(study_url, wait_until="networkidle", timeout=30000)
-            links = page.locator("a")
-            count = links.count()
+        # Construire l'URL du CDN officiel
+        last_two = nct_id[-2:]
+        pdf_url = f"https://cdn.clinicaltrials.gov/large-docs/{last_two}/{nct_id}/{pdf_filename}"
+        
+        print(f"Téléchargement du PDF via CDN: {pdf_url}")
+        pdf_res = requests.get(pdf_url, stream=True, timeout=20)
+        
+        if pdf_res.status_code == 200:
+            filepath = os.path.join(output_dir, f"{nct_id}_{pdf_filename}")
+            with open(filepath, "wb") as f:
+                for chunk in pdf_res.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print(f"DOWNLOADED:{filepath}")
+            return filepath
+        else:
+            print(f"Erreur téléchargement CDN ({pdf_res.status_code}): {pdf_url}")
             
-            for i in range(count):
-                href = links.nth(i).get_attribute("href")
-                if href and (".pdf" in href.lower() or "large-docs" in href.lower()):
-                    try:
-                        with page.expect_download(timeout=15000) as download_info:
-                            links.nth(i).click(force=True)
-                        download = download_info.value
-                        
-                        safe_name = download.suggested_filename
-                        if not safe_name.endswith(".pdf"):
-                            safe_name += ".pdf"
-                            
-                        filepath = os.path.join(output_dir, f"{nct_id}_{safe_name}")
-                        download.save_as(filepath)
-                        browser.close()
-                        print(f"DOWNLOADED:{filepath}")
-                        return filepath
-                    except Exception:
-                        pass
-            browser.close()
     except Exception as e:
-        print(f"Erreur téléchargement pour {nct_id}: {e}")
+        print(f"Erreur téléchargement API pour {nct_id}: {e}")
+        
     return None
 
 if __name__ == "__main__":
