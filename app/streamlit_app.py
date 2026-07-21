@@ -30,7 +30,7 @@ if os.path.exists(banner_path):
         st.image(banner_path, use_container_width=True)
 
 st.title("🫀 Moteur d'Extraction & Chatbot Clinique")
-st.markdown("### Architecture de bout en bout (Pipeline Full BioBERT)")
+st.markdown("### Architecture de bout en bout (ETL Hybride & vLLM)")
 st.markdown("---")
 
 # Initialisation de l'état
@@ -79,7 +79,7 @@ with st.sidebar.expander("🚀 MLOps & Ops", expanded=False):
 st.sidebar.markdown("---")
 st.sidebar.header("Configuration API")
 st.sidebar.metric(label="Serveur Inférence", value="Lightning AI (GPU)")
-st.sidebar.metric(label="Modèle", value="Full BioBERT")
+st.sidebar.metric(label="Moteur Inférence", value="vLLM + Qwen 7B")
 st.sidebar.info("Cette interface héberge Streamlit et le scraping, et délègue l'intelligence (Extraction & RAG) au GPU via l'API.")
 api_url = st.sidebar.text_input("URL de l'API Lightning AI:", value=os.getenv("LIGHTNING_AI_API_URL", "http://127.0.0.1:8000"), key="api_url_input")
 
@@ -149,7 +149,7 @@ with tab1:
                 if "demo_cache" not in st.session_state:
                     st.session_state.demo_cache = {}
                     
-                with st.spinner(f"Étape 2/2 : Envoi de {len(tasks)} protocoles au serveur GPU (Full BioBERT) & MLflow..."):
+                with st.spinner(f"Étape 2/2 : Envoi de {len(tasks)} protocoles au serveur GPU (vLLM) & MLflow..."):
                     start_time = time.time()
                     results = []
                     
