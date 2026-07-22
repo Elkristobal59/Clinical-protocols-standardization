@@ -2,7 +2,7 @@ import json
 import random
 import os
 
-# Reproductibilité du split
+# Reproductibilité (utile si on veut re-mélanger plus tard, mais ici on va isoler les PDF)
 random.seed(42)
 
 def convert_to_chatml(doc_dict):
@@ -38,42 +38,58 @@ def convert_to_chatml(doc_dict):
 
 def main():
     input_path = os.path.join("data", "chia_gold_standard_v2.json")
+    pdf_dir = os.path.join("data", "chia_pdfs")
     
     if not os.path.exists(input_path):
         print(f"❌ Erreur : {input_path} est introuvable. Lancez extract_full_chia.py d'abord.")
         return
 
+    # 1. Identifier les études qui ont un PDF associé
+    pdf_nct_ids = set()
+    if os.path.exists(pdf_dir):
+        for filename in os.listdir(pdf_dir):
+            if filename.endswith(".pdf"):
+                nct_id = filename.split("_")[0]
+                pdf_nct_ids.add(nct_id)
+        print(f"✅ Trouvé {len(pdf_nct_ids)} études avec des documents PDF complets.")
+    else:
+        print(f"⚠️ Attention : Le dossier {pdf_dir} n'existe pas. Assurez-vous d'avoir téléchargé les PDFs.")
+        return
+
+    # 2. Charger toutes les données extraites
     with open(input_path, "r", encoding="utf-8") as f:
         dataset_v2 = json.load(f)
         
     print(f"Chargement de {len(dataset_v2)} blocs de texte (chunks).")
     
-    # Il est CRUCIAL de faire le split par 'NCT ID' et non par bloc de texte (chunk).
-    # Si on split par chunk, des paragraphes de la même étude pourraient se retrouver 
-    # à la fois dans le Train et le Test, créant une fuite de données (Data Leakage).
-    
-    studies = {} # Dictionnaire { "NCT_ID": [liste_des_chunks] }
+    # Rassembler par NCT ID
+    studies = {} 
     for doc in dataset_v2:
-        # doc["file"] ressemble souvent à "NCT01410890_exc" ou "NCT01410890_inc"
         nct_id = doc["file"].split("_")[0]
         if nct_id not in studies:
             studies[nct_id] = []
         studies[nct_id].append(doc)
         
     unique_nct = list(studies.keys())
-    print(f"Nombre total d'études uniques (NCT IDs) : {len(unique_nct)}")
+    print(f"Nombre total d'études uniques (NCT IDs) valides : {len(unique_nct)}")
     
-    # Mélange aléatoire (seed fixé pour reproductibilité)
-    random.shuffle(unique_nct)
+    # 3. Séparation Stratégique selon la règle de Jérémie
+    train_ncts = []
+    test_ncts = []
     
-    # Split 80% / 20%
-    split_index = int(len(unique_nct) * 0.8)
-    train_ncts = unique_nct[:split_index]
-    test_ncts = unique_nct[split_index:]
+    for nct in unique_nct:
+        if nct in pdf_nct_ids:
+            # Si l'étude a un PDF, elle part dans le Test (pour évaluation globale plus tard)
+            test_ncts.append(nct)
+        else:
+            # Sinon, elle sert de matériel d'entraînement
+            train_ncts.append(nct)
+            
+    print(f"\n📊 NOUVELLE RÉPARTITION (Stratégie PDF) :")
+    print(f" -> {len(train_ncts)} études pour le Train (sans PDF)")
+    print(f" -> {len(test_ncts)} études pour le Test (avec PDF)")
     
-    print(f"Répartition : {len(train_ncts)} études pour le Train, {len(test_ncts)} études pour le Test.")
-    
-    # Rassembler les chunks et les convertir en ChatML
+    # 4. Conversion et Sauvegarde
     train_chatml = []
     for nct in train_ncts:
         for chunk in studies[nct]:
@@ -84,7 +100,6 @@ def main():
         for chunk in studies[nct]:
             test_chatml.append(convert_to_chatml(chunk))
             
-    # Sauvegarde des fichiers JSONL
     train_path = os.path.join("data", "train_dataset.jsonl")
     test_path = os.path.join("data", "test_dataset.jsonl")
     
@@ -96,9 +111,9 @@ def main():
         for item in test_chatml:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
             
-    print("\n✅ Fichiers JSONL générés avec succès :")
-    print(f" - {train_path} ({len(train_chatml)} exemples)")
-    print(f" - {test_path} ({len(test_chatml)} exemples)")
+    print("\n✅ Fichiers JSONL régénérés avec succès :")
+    print(f" - {train_path} ({len(train_chatml)} exemples chunks)")
+    print(f" - {test_path} ({len(test_chatml)} exemples chunks)")
 
 if __name__ == "__main__":
     main()
