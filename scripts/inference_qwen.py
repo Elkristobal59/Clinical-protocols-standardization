@@ -63,7 +63,6 @@ def main():
                 **inputs,
                 max_new_tokens=2048,
                 do_sample=False,
-                repetition_penalty=1.1,
                 pad_token_id=tokenizer.eos_token_id
             )
             
@@ -80,7 +79,10 @@ def main():
                 json_part = response_text.strip()
                 
             predicted_entities = json.loads(json_part)
-        except Exception:
+        except Exception as e:
+            if fp_total + fn_total < 10:  # Print only for the first few errors to not spam
+                print(f"\n[DEBUG ERROR] JSON parse failed! Error: {e}")
+                print(f"[DEBUG RAW OUTPUT] {repr(response_text[:500])}...\n")
             predicted_entities = []
             
         # Format attendu : {"label": "...", "entity": "..."}
