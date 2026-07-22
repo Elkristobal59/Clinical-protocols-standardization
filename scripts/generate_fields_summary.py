@@ -3,54 +3,81 @@ import pandas as pd
 import argparse
 import sys
 
-MODULES = [
-    ("protocolSection", "identificationModule", ["nctId", "briefTitle", "officialTitle", "orgStudyIdInfo"]),
-    ("protocolSection", "statusModule", ["overallStatus", "startDateStruct", "completionDateStruct"]),
-    ("protocolSection", "sponsorCollaboratorsModule", ["leadSponsor", "collaborators", "responsibleParty"]),
-    ("protocolSection", "oversightModule", ["oversightHasDmc", "isFdaRegulatedDrug", "isFdaRegulatedDevice"]),
-    ("protocolSection", "descriptionModule", ["briefSummary", "detailedDescription"]),
-    ("protocolSection", "conditionsModule", ["conditions", "keywords"]),
-    ("protocolSection", "designModule", ["studyType", "phases", "designInfo"]),
-    ("protocolSection", "armsInterventionsModule", ["armGroups", "interventions"]),
-    ("protocolSection", "outcomesModule", ["primaryOutcomes", "secondaryOutcomes"]),
-    ("protocolSection", "eligibilityModule", ["eligibilityCriteria", "sex", "minimumAge", "maximumAge"]),
-    ("protocolSection", "contactsLocationsModule", ["centralContacts", "overallOfficials", "locations"]),
-    ("protocolSection", "referencesModule", ["references", "seeAlsoLinks"]),
-    ("resultsSection", "participantFlowModule", ["recruitmentDetails", "preAssignmentDetails", "groups", "periods"]),
-    ("resultsSection", "baselineCharacteristicsModule", ["denominators", "measures"]),
-    ("resultsSection", "outcomeMeasuresModule", ["outcomeMeasures"]),
-    ("resultsSection", "adverseEventsModule", ["timeFrame", "eventGroups", "seriousEvents", "otherEvents"]),
-    ("derivedSection", "miscInfoModule", ["versionHolder", "submissionTracking"])
-]
+# Structure demandée par Jérémie :
+# Obligatoires : nctId, InterventionName, Phase, StudyType, EligibilityCriteria, PrimaryOutcomeMeasure
+# Bonus Summary Table : officialTitle, primaryPurpose, EnrollmentCount, InterventionType 
 
-def check_module_fields(data, section, module, fields):
-    if section not in data:
-        return "No"
+def safe_get(data, *keys):
+    """Fonction utilitaire pour naviguer dans le JSON de l'API v2 en toute sécurité"""
+    curr = data
+    for k in keys:
+        if isinstance(curr, dict) and k in curr:
+            curr = curr[k]
+        else:
+            return None
+    return curr
+
+def extract_study_data(study_json):
+    """Extrait exactement les champs demandés par Jérémie depuis la structure complexe de l'API v2"""
     
-    sec_data = data[section]
-    if module not in sec_data:
-        return "No"
+    # --- Champs d'Identification ---
+    nct_id = safe_get(study_json, "protocolSection", "identificationModule", "nctId")
+    title = safe_get(study_json, "protocolSection", "identificationModule", "officialTitle")
     
-    mod_data = sec_data[module]
-    found = 0
-    for field in fields:
-        if field in mod_data:
-            found += 1
+    # --- Design & Type ---
+    study_type = safe_get(study_json, "protocolSection", "designModule", "studyType")
+    phases = safe_get(study_json, "protocolSection", "designModule", "phases")
+    phase_str = ", ".join(phases) if phases else "N/A"
+    
+    primary_purpose = safe_get(study_json, "protocolSection", "designModule", "designInfo", "primaryPurpose")
+    enrollment = safe_get(study_json, "protocolSection", "designModule", "enrollmentInfo", "count")
+    
+    # --- Critères d'éligibilité ---
+    eligibility = safe_get(study_json, "protocolSection", "eligibilityModule", "eligibilityCriteria")
+    eligibility_status = "Présent" if eligibility else "Absent"
+    
+    # --- Interventions (Il peut y en avoir plusieurs) ---
+    interventions = safe_get(study_json, "protocolSection", "armsInterventionsModule", "interventions")
+    int_names = []
+    int_types = []
+    if interventions:
+        for inter in interventions:
+            name = inter.get("name")
+            itype = inter.get("type")
+            if name: int_names.append(name)
+            if itype: int_types.append(itype)
             
-    if found == len(fields) and len(fields) > 0:
-        return "Yes"
-    elif found > 0:
-        return "Partial"
-    else:
-        if len(mod_data.keys()) > 0:
-            return "Partial"
-        return "No"
+    int_name_str = " | ".join(int_names) if int_names else "N/A"
+    int_type_str = " | ".join(int_types) if int_types else "N/A"
+    
+    # --- Primary Outcomes ---
+    outcomes = safe_get(study_json, "protocolSection", "outcomesModule", "primaryOutcomes")
+    outcome_measures = []
+    if outcomes:
+        for out in outcomes:
+            measure = out.get("measure")
+            if measure: outcome_measures.append(measure)
+    outcome_str = " | ".join(outcome_measures) if outcome_measures else "N/A"
+    
+    # Création de la ligne pour le tableau récapitulatif
+    return {
+        "NCT_ID": nct_id,
+        "Official Title": title or "N/A",
+        "Study Type": study_type or "N/A",
+        "Phase": phase_str,
+        "Primary Purpose": primary_purpose or "N/A",
+        "Enrollment Count": enrollment or "N/A",
+        "Eligibility Criteria": eligibility_status,
+        "Intervention Type": int_type_str,
+        "Intervention Name": int_name_str,
+        "Primary Outcome Measure": outcome_str
+    }
 
 def main():
-    parser = argparse.ArgumentParser(description="Générer une table de résumé des champs ClinicalTrials.gov")
+    parser = argparse.ArgumentParser(description="Générer une table de résumé selon les champs définis par Jérémie")
     parser.add_argument("--query", type=str, help="Mot clé de la pathologie (ex: 'Plasma Cell')")
     parser.add_argument("--nct_ids", type=str, help="Liste d'IDs séparés par des virgules (ex: NCT01547806,NCT03047980)")
-    parser.add_argument("--output", type=str, default="summary_table.csv", help="Fichier de sortie CSV")
+    parser.add_argument("--output", type=str, default="summary_table_jeremie.csv", help="Fichier de sortie CSV")
     
     args = parser.parse_args()
     
@@ -58,20 +85,18 @@ def main():
         print("Erreur : Veuillez spécifier --query ou --nct_ids")
         sys.exit(1)
         
-    studies = []
+    studies_data = []
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
     if args.query:
         print(f"Recherche des études pour la requête : {args.query}")
-        url = f"https://clinicaltrials.gov/api/v2/studies?query.cond={args.query}&pageSize=5"
+        url = f"https://clinicaltrials.gov/api/v2/studies?query.cond={args.query}&pageSize=10"
         try:
             resp = requests.get(url, headers=headers, timeout=15)
             if resp.status_code == 200:
-                studies_data = resp.json().get("studies", [])
-                for s in studies_data:
-                    nct_id = s.get("protocolSection", {}).get("identificationModule", {}).get("nctId")
-                    if nct_id:
-                        studies.append({"id": nct_id, "data": s})
+                raw_studies = resp.json().get("studies", [])
+                for s in raw_studies:
+                    studies_data.append(extract_study_data(s))
         except Exception as e:
             print(f"Erreur API: {e}")
             sys.exit(1)
@@ -84,34 +109,18 @@ def main():
             try:
                 resp = requests.get(url, headers=headers, timeout=10)
                 if resp.status_code == 200:
-                    studies.append({"id": nct_id, "data": resp.json()})
+                    studies_data.append(extract_study_data(resp.json()))
             except Exception as e:
                 print(f"Erreur API pour {nct_id}: {e}")
                 
-    if not studies:
+    if not studies_data:
         print("Aucune étude trouvée.")
         sys.exit(0)
         
-    print(f"{len(studies)} études récupérées. Génération du tableau...")
-    df = generate_summary_df(studies)
+    print(f"{len(studies_data)} études récupérées. Génération du tableau...")
+    df = pd.DataFrame(studies_data)
     df.to_csv(args.output, index=False, sep=";", encoding="utf-8-sig")
     print(f"✅ Tableau généré avec succès dans : {args.output}")
-
-def generate_summary_df(studies):
-    """Génère le DataFrame Pandas du résumé des champs à partir d'une liste de dicts {'id': 'NCT...', 'data': JSON}"""
-    rows = []
-    for section, module, fields in MODULES:
-        row = {
-            "Section": section,
-            "Module": module,
-            "Representative Fields": ", ".join(fields)
-        }
-        for study in studies:
-            nct_id = study["id"]
-            status = check_module_fields(study["data"], section, module, fields)
-            row[nct_id] = status
-        rows.append(row)
-    return pd.DataFrame(rows)
 
 if __name__ == "__main__":
     main()
