@@ -4,10 +4,9 @@ from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
-    TrainingArguments,
+    BitsAndBytesConfig
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
 
 # Configuration
@@ -32,15 +31,13 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
         quantization_config=bnb_config,
-        device_map="auto"
+        device_map="auto",
+        torch_dtype=torch.float16
     )
     model.config.use_cache = False
     
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     tokenizer.pad_token = tokenizer.eos_token
-    
-    # Prepare model for PEFT (SFTTrainer does this automatically)
-    # model = prepare_model_for_kbit_training(model)
     
     # LoRA config
     peft_config = LoraConfig(
@@ -51,7 +48,6 @@ def main():
         bias="none",
         task_type="CAUSAL_LM"
     )
-    # model = get_peft_model(model, peft_config)
     
     # Format the messages into prompt
     def formatting_prompts_func(example):
@@ -66,28 +62,24 @@ def main():
     training_args = SFTConfig(
         output_dir=OUTPUT_DIR,
         dataset_text_field="text",
-        max_length=512,
+        max_seq_length=512,
         per_device_train_batch_size=1,     # Réduit à 1 pour économiser la mémoire
         gradient_accumulation_steps=8,     # Augmenté pour simuler un batch size de 8
         optim="paged_adamw_8bit",          # Optimiseur en 8-bits pour diviser sa taille mémoire par 4 !
         save_steps=50,
         logging_steps=10,
         learning_rate=2e-4,
-        fp16=True,
+        bf16=True,
         max_grad_norm=0.3,
         max_steps=200, 
-        warmup_ratio=0.03,
-        group_by_length=True,
+        warmup_steps=10,
         lr_scheduler_type="constant"
     )
     
     # Trainer
     trainer = SFTTrainer(
-        model=model,
-        train_dataset=dataset,
-        peft_config=peft_config,
-        processing_class=tokenizer,
-        args=training_args,
+        model=model, train_dataset=dataset, peft_config=peft_config,
+        processing_class=tokenizer, args=training_args
     )
     
     print("Starting training...")
