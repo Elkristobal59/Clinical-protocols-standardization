@@ -1,6 +1,6 @@
 import torch
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 from tqdm import tqdm
 import re
@@ -14,18 +14,13 @@ def main():
     print("Loading tokenizer and base model...")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16
-    )
-    
+    # Suppression de la quantification 4-bit pour l'inférence. 
+    # Le modèle 0.5B fait ~1Go en bf16, il tiendra largement sur la L4 (24Go)
+    # et l'inférence sera 10x à 20x plus rapide !
     base_model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
-        quantization_config=bnb_config,
         device_map="auto",
-        dtype=torch.bfloat16
+        torch_dtype=torch.bfloat16
     )
     
     # Charger les poids finetunés (LoRA)
