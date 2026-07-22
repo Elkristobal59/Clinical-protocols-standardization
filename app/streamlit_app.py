@@ -84,7 +84,7 @@ with st.sidebar.expander("🚀 MLOps & Ops", expanded=False):
 st.sidebar.markdown("---")
 st.sidebar.header("Configuration API")
 st.sidebar.metric(label="Serveur Inférence", value="Lightning AI (GPU)")
-st.sidebar.metric(label="Moteur Inférence", value="vLLM + Qwen 7B")
+st.sidebar.metric(label="Moteur Inférence", value="vLLM + Qwen 0.5B")
 st.sidebar.info("Cette interface héberge Streamlit et le scraping, et délègue l'intelligence (Extraction & RAG) au GPU via l'API.")
 api_url = st.sidebar.text_input("URL de l'API Lightning AI:", value=os.getenv("LIGHTNING_AI_API_URL", "http://127.0.0.1:8000"), key="api_url_input")
 
