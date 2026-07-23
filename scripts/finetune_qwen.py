@@ -62,8 +62,9 @@ def main():
     from transformers import TrainingArguments
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
-        per_device_train_batch_size=2,     # Augmenté à 2 pour tirer parti de la Nvidia L4 (24Go)
-        gradient_accumulation_steps=4,     # Ajusté pour garder un batch size effectif de 8
+        per_device_train_batch_size=1,     # Réduit à 1 pour éviter l'erreur CUDA OOM sur la L4
+        gradient_accumulation_steps=8,     # Ajusté pour garder un batch size effectif de 8
+        gradient_checkpointing=True,       # Obligatoire pour un modèle 7B afin d'économiser la VRAM
         optim="paged_adamw_8bit",          # Optimiseur en 8-bits pour diviser sa taille mémoire par 4 !
         save_steps=50,
         logging_steps=10,
