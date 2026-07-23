@@ -96,3 +96,4 @@ Pour garantir la pérennité de notre modèle en production, nous avons prévu u
 - **Traitement Multi-modal (CNN / ViT)** : Analyser directement les images, graphiques et scanners encapsulés dans les PDF grâce à des réseaux de neurones convolutifs (CNN) ou des Vision Transformers.
 - **Scalabilité Cloud** : Architecture distribuée pour l'ingestion massive d'essais cliniques mondiaux.
 - **Modèles SLM** : Fine-tuning d'un petit modèle (Small Language Model) spécialisé pour réduire considérablement les coûts d'inférence en production.
+- **Auto-suppression Supabase (TTL / CRON)** : Routines de purge automatique pour effacer régulièrement les PDF temporaires stockés dans le Cloud, afin d'optimiser les coûts de stockage et de garantir la conformité RGPD.
