@@ -26,9 +26,9 @@ from trl import SFTTrainer, SFTConfig
 # ---------------------------------------------------------
 # ⚙️ CONFIGURATION DU MODÈLE
 # ---------------------------------------------------------
-MODEL_ID = "Qwen/Qwen2.5-7B-Instruct" # Modèle de base open-source
+MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct" # Modèle de base open-source (Small Language Model)
 DATASET_PATH = "data/train_dataset.jsonl"
-OUTPUT_DIR = "models/qwen_7b_chia_finetuned"
+OUTPUT_DIR = "models/qwen_0.5b_chia_finetuned"
 
 def main():
     print(f"Loading dataset from {DATASET_PATH}...")
