@@ -96,9 +96,9 @@ L'architecture est modulaire, extrêmement véloce, robuste face aux cas limites
     *   **`entropy` (L'Incertitude) :** Mesure de l'hésitation du modèle. Elle a fortement baissé, prouvant que le modèle a pris confiance.
     *   **`grad_norm` (Norme du gradient) :** La force des corrections appliquées. Maintenue stable (autour de 0.5), elle prouve un apprentissage fluide sans bug mathématique.
     *   **`learning_rate` :** Maintenu constant à 0.0002. L'idéal pour un Quick LoRA (Fine-Tuning rapide) sans faire d'Oubli Catastrophique.
-5.  **Le Choix Stratégique du Modèle (Pourquoi Qwen2.5-0.5B-Instruct ?) :**
+5.  **Le Choix Stratégique du Modèle (Pourquoi Qwen2.5-7B-Instruct ?) :**
     *   **L'Architecture 2.5 :** Sortie très récemment (septembre 2024), elle possède d'excellentes capacités natives pour structurer ses sorties en JSON strict (crucial pour notre pipeline).
-    *   **Le Format "Small Language Model" (0.5B) :** Ne pesant qu'1 Go, il peut tourner localement sur un ordinateur portable standard (Edge AI). C'est un point décisif pour les données de santé : aucune donnée patient ne fuite sur des serveurs Cloud (respect total du secret médical et du RGPD).
+    *   **Un Modèle Puissant mais "Edge-Friendly" (7B) :** Avec 7 milliards de paramètres, c'est un LLM extrêmement intelligent, capable de rivaliser avec de gros modèles fermés, mais assez léger pour tourner sur une architecture Cloud abordable. Et grâce à notre méthode de compression (QLoRA 4-bit), on divise son poids par 3, limitant drastiquement les coûts de VRAM. 
     *   **Le Tag "Instruct" :** Il sait déjà suivre une conversation et des consignes. Lors du fine-tuning, nous n'avons pas eu besoin de lui apprendre à parler, mais uniquement à extraire la sémantique médicale (gain de temps et de données).
     *   **Multilingue :** Très performant en français et en anglais, idéal pour des textes médicaux qui mélangent souvent les deux langues.
 
@@ -106,7 +106,7 @@ L'architecture est modulaire, extrêmement véloce, robuste face aux cas limites
 
 ## 6. 🚀 Perspectives Futures
 **"Si nous avions encore plus de temps, voici ce que nous ferions :"**
-1.  **Traitement Multi-Modal :** Ajouter la capacité de lire et comprendre les tableaux, graphiques et images souvent présents dans les PDF complexes.
-2.  **Scalabilité Cloud (Kubernetes) :** Passer d'un seul conteneur GPU (Lightning.ai) à un cluster Kubernetes capable d'auto-scaler le nombre de GPUs en fonction du volume d'essais entrants.
-3.  **Workflows d'Agents IA :** Connecter notre LLM à des bases externes (PubMed, WHO) pour qu'il vérifie ou croise ses extractions de lui-même (Agentic RAG).
-4.  **Détection du Data Drift (Human-in-the-Loop) :** Mettre en place un système de signalement des erreurs par les médecins dans l'interface, afin de détecter silencieusement le "Drift" (nouveau vocabulaire médical, nouvelles maladies) et déclencher automatiquement un ré-entraînement (QLoRA) de mise à jour.
+1.  **Traitement Multi-Modal (CNN / ViT) :** Analyser directement les images, graphiques et scanners encapsulés dans les PDF grâce à des réseaux de neurones convolutifs (CNN) ou des Vision Transformers.
+2.  **Scalabilité Cloud (Kubernetes) :** Architecture distribuée en cluster pour l'ingestion massive d'essais cliniques mondiaux.
+3.  **Modèles SLM :** Fine-tuning d'un très petit modèle (Small Language Model, type Qwen-0.5B) ultra-spécialisé pour réduire encore plus drastiquement les coûts d'inférence (Edge AI sur petits serveurs locaux).
+4.  **Détection et Lutte contre le Drift (Human-in-the-Loop) :** Mettre en place un système de signalement des erreurs par les médecins dans l'interface, afin de détecter silencieusement le "Drift" (nouveau vocabulaire médical, nouvelles maladies) et déclencher automatiquement un ré-entraînement continu (QLoRA) tous les 3 mois.
