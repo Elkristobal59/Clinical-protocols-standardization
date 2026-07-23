@@ -1,3 +1,21 @@
+"""
+Script : streamlit_app.py (Le Frontend Démo & RAG)
+--------------------------------------------------
+Rôle : Offrir une interface graphique utilisateur (GUI) interactive pour démontrer 
+le pipeline d'extraction IA et le Chatbot (RAG) au jury.
+
+🎓 Explication pour le jury (Pourquoi ce Front ?) :
+En MLOps, avoir un modèle performant ne suffit pas, il faut pouvoir le rendre utilisable 
+par les métiers (ici, des chercheurs médicaux). 
+Ce dashboard Streamlit est le point d'entrée qui connecte les utilisateurs humains 
+à notre intelligence artificielle (Qwen) hébergée sur l'API FastAPI (Backend).
+
+Fonctionnalités clés :
+1. Recherche dynamique (Scraping ou API) d'essais cliniques (Demande d'Arnaud implémentée).
+2. Extraction RAG : Interrogation de l'API pour extraire les critères complexes.
+3. Chatbot Interactif : Permet de discuter avec les documents vectorisés.
+"""
+
 import os
 import sys
 import time

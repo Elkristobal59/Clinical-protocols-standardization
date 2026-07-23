@@ -1,15 +1,28 @@
+"""
+Script : generate_fields_summary.py (Le Formateur Streamlit)
+-----------------------------------------------------------
+Rôle : Interroger l'API officielle ClinicalTrials.gov (v2) et extraire uniquement 
+les métadonnées clés pour les afficher proprement dans l'interface utilisateur (Streamlit).
+
+🎓 Explication pour le jury :
+Les réponses de l'API de ClinicalTrials sont des JSON géants (parfois 3000 lignes pour un seul essai !).
+L'application Streamlit n'a pas besoin de toute cette complexité.
+Ce script agit comme un "entonnoir" (Data Transformation). Il prend le JSON géant, navigue dans 
+l'arborescence complexe, et ressort un dictionnaire ultra-propre avec juste les 10 colonnes demandées 
+par le métier (Titre, Phase, Maladie, etc.).
+"""
+
 import requests
 import pandas as pd
 import argparse
 import sys
 import os
 
-# Structure demandée par Jérémie :
-# Obligatoires : nctId, InterventionName, Phase, StudyType, EligibilityCriteria, PrimaryOutcomeMeasure
-# Bonus Summary Table : officialTitle, primaryPurpose, EnrollmentCount, InterventionType 
-
 def safe_get(data, *keys):
-    """Fonction utilitaire pour naviguer dans le JSON de l'API v2 en toute sécurité"""
+    """
+    Fonction utilitaire pour naviguer dans le JSON de l'API v2 en toute sécurité.
+    Évite les erreurs fatales (KeyError) si une étude n'a pas renseigné un champ spécifique.
+    """
     curr = data
     for k in keys:
         if isinstance(curr, dict) and k in curr:
@@ -19,7 +32,10 @@ def safe_get(data, *keys):
     return curr
 
 def has_pdf(nct_id):
-    """Vérifie si un PDF est présent pour ce NCT ID dans le dossier data/chia_pdfs"""
+    """
+    Vérifie si un PDF est présent pour ce NCT ID dans notre base de données locale (data/chia_pdfs).
+    Permet d'afficher une jolie icône "✅" dans Streamlit si le document est prêt pour l'IA.
+    """
     pdf_dir = os.path.join("data", "chia_pdfs")
     if os.path.exists(pdf_dir):
         for filename in os.listdir(pdf_dir):
@@ -28,7 +44,10 @@ def has_pdf(nct_id):
     return "Non"
 
 def extract_study_data(study_json):
-    """Extrait exactement les champs demandés par Jérémie depuis la structure complexe de l'API v2"""
+    """
+    Extrait exactement les champs demandés (Business Requirements) depuis la structure 
+    complexe de l'API v2.
+    """
     
     # --- Champs d'Identification ---
     nct_id = safe_get(study_json, "protocolSection", "identificationModule", "nctId")
@@ -60,7 +79,7 @@ def extract_study_data(study_json):
     int_name_str = " | ".join(int_names) if int_names else "N/A"
     int_type_str = " | ".join(int_types) if int_types else "N/A"
     
-    # --- Primary Outcomes ---
+    # --- Primary Outcomes (Ce qu'on mesure) ---
     outcomes = safe_get(study_json, "protocolSection", "outcomesModule", "primaryOutcomes")
     outcome_measures = []
     if outcomes:
@@ -69,7 +88,7 @@ def extract_study_data(study_json):
             if measure: outcome_measures.append(measure)
     outcome_str = " | ".join(outcome_measures) if outcome_measures else "N/A"
     
-    # Création de la ligne pour le tableau récapitulatif
+    # 📝 Retourne la ligne structurée prête pour le DataFrame Pandas
     return {
         "NCT_ID": nct_id,
         "PDF Présent": has_pdf(nct_id),
@@ -85,9 +104,9 @@ def extract_study_data(study_json):
     }
 
 def main():
-    parser = argparse.ArgumentParser(description="Générer une table de résumé selon les champs définis par Jérémie")
-    parser.add_argument("--query", type=str, help="Mot clé de la pathologie (ex: 'Plasma Cell')")
-    parser.add_argument("--nct_ids", type=str, help="Liste d'IDs séparés par des virgules (ex: NCT01547806,NCT03047980)")
+    parser = argparse.ArgumentParser(description="Générer une table de résumé des essais cliniques")
+    parser.add_argument("--query", type=str, help="Mot clé de la pathologie (ex: 'Breast Cancer')")
+    parser.add_argument("--nct_ids", type=str, help="Liste d'IDs séparés par des virgules")
     parser.add_argument("--output", type=str, default="summary_table_jeremie.csv", help="Fichier de sortie CSV")
     
     args = parser.parse_args()
@@ -129,6 +148,7 @@ def main():
         sys.exit(0)
         
     print(f"{len(studies_data)} études récupérées. Génération du tableau...")
+    # 🐼 Conversion en Dataframe pour un affichage propre ou export CSV
     df = pd.DataFrame(studies_data)
     df.to_csv(args.output, index=False, sep=";", encoding="utf-8-sig")
     print(f"✅ Tableau généré avec succès dans : {args.output}")

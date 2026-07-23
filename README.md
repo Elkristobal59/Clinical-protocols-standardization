@@ -83,3 +83,10 @@ cd terraform
 terraform init
 terraform apply
 ```
+
+## 🛠️ Améliorations Futures (Lutte contre le Drift)
+
+Pour garantir la pérennité de notre modèle en production, nous avons prévu une stratégie de lutte contre le **Drift** (Dérive des données et du concept) :
+- **Data Drift** : Si les textes des protocoles cliniques (ClinicalTrials) changent de format ou de vocabulaire dans 2 ans, les performances du modèle vont baisser.
+- **Concept Drift** : De nouvelles maladies ou de nouveaux types de traitements (ex: thérapies géniques, Covid) peuvent apparaître, rendant le modèle obsolète.
+- **Notre Solution (Human-in-the-Loop)** : L'interface permet aux experts médicaux de signaler une erreur d'extraction. Ces corrections sont sauvegardées dans une base de données de "Feedback". Tous les 3 mois, un script MLOps utilisera ces nouvelles données corrigées pour déclencher un **Ré-entraînement Automatique (Fine-Tuning Continu)** du modèle Qwen, assurant ainsi sa résilience face au temps.
