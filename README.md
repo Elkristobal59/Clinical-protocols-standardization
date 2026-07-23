@@ -84,9 +84,15 @@ terraform init
 terraform apply
 ```
 
-## 🛠️ Améliorations Futures (Lutte contre le Drift)
+## 🛠️ Améliorations Futures
 
+### 1. Stratégie de Lutte contre le Drift (Dérive)
 Pour garantir la pérennité de notre modèle en production, nous avons prévu une stratégie de lutte contre le **Drift** (Dérive des données et du concept) :
 - **Data Drift** : Si les textes des protocoles cliniques (ClinicalTrials) changent de format ou de vocabulaire dans 2 ans, les performances du modèle vont baisser.
 - **Concept Drift** : De nouvelles maladies ou de nouveaux types de traitements (ex: thérapies géniques, Covid) peuvent apparaître, rendant le modèle obsolète.
 - **Notre Solution (Human-in-the-Loop)** : L'interface permet aux experts médicaux de signaler une erreur d'extraction. Ces corrections sont sauvegardées dans une base de données de "Feedback". Tous les 3 mois, un script MLOps utilisera ces nouvelles données corrigées pour déclencher un **Ré-entraînement Automatique (Fine-Tuning Continu)** du modèle Qwen, assurant ainsi sa résilience face au temps.
+
+### 2. Améliorations Techniques
+- **Traitement Multi-modal (CNN / ViT)** : Analyser directement les images, graphiques et scanners encapsulés dans les PDF grâce à des réseaux de neurones convolutifs (CNN) ou des Vision Transformers.
+- **Scalabilité Cloud** : Architecture distribuée pour l'ingestion massive d'essais cliniques mondiaux.
+- **Modèles SLM** : Fine-tuning d'un petit modèle (Small Language Model) spécialisé pour réduire considérablement les coûts d'inférence en production.
