@@ -58,7 +58,7 @@ Le backend (FastAPI) reçoit soit du texte pur, soit le fichier PDF.
 
 C'est là que la magie de l'IA opère en deux temps (Le RAG) :
 1.  **Embedding (BioBERT) :** Le texte brut passe dans le modèle `dmis-lab/biobert-v1.1`. C'est un modèle NLP spécialisé dans le biomédical. Il transforme le texte en vecteurs pour cibler précisément où se cachent les médicaments, pathologies et critères.
-2.  **Génération LLM (Qwen) :** On envoie ce contexte ultra-ciblé à `Qwen1.5-7B-Chat`. Ce modèle de langage tourne sur notre GPU accéléré par le moteur d'inférence très haute performance `vLLM`. Qwen a pour directive stricte (prompt) de recracher la donnée sous un format **JSON standardisé**.
+2.  **Génération LLM (Qwen) :** On envoie ce contexte ultra-ciblé à `Qwen2.5-7B-Instruct`. Ce modèle de langage tourne sur notre GPU accéléré par le moteur d'inférence très haute performance `vLLM`. Qwen a pour directive stricte (prompt) de recracher la donnée sous un format **JSON standardisé**.
 
 > **💡 Note de Performance (vLLM) :** Grâce à notre moteur `vLLM` couplé au GPU, nous atteignons des vitesses de génération d'environ **75 tokens par seconde**. Le temps de lecture et d'extraction complète d'un essai clinique prend en moyenne **2 à 4 secondes** (contre plusieurs dizaines de secondes sur une architecture CPU classique).
 

@@ -41,7 +41,7 @@ app = FastAPI(title="Clinical Trials AI Extraction API (Phase 3)")
 # ---------------------------------------------------------
 SUPABASE_DB_URL = os.getenv("SUPABASE_DATABASE_URL")
 BIOBERT_MODEL = "dmis-lab/biobert-v1.1" # Modèle de NLP médical pour la recherche vectorielle (Retriever)
-QWEN_MODEL = "Qwen/Qwen1.5-7B-Chat"  # LLM Génératif pour extraire le JSON (Generator)
+QWEN_MODEL = "Qwen/Qwen2.5-7B-Instruct"  # LLM Génératif pour extraire le JSON (Generator)
 
 # Variables globales : On charge les modèles une seule fois au démarrage pour éviter de saturer la RAM.
 device = None
