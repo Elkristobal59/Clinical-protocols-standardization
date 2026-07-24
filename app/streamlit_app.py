@@ -91,7 +91,7 @@ FIELD_LABELS = {"Condition": "Maladie (Condition)"}
 for k, v in {"search_done": False, "analysis_done": False,
              "found_studies": [], "force_pdf": False, "latest_query": "",
              "latest_results": [], "extracted_docs": [],
-             "chat_history": [], "demo_cache": {}}.items():
+             "chat_history": [], "demo_cache": {}, "selected_ncts": []}.items():
     st.session_state.setdefault(k, v)
 
 # --------------------------------------------------------------------------- #
@@ -190,16 +190,121 @@ def age_ok(study, user_min, user_max):
     return True
 
 
+def build_rag_text(study):
+    """Transforme le JSON ClinicalTrials en document texte structuré contenant
+    TOUTES les sections utiles au RAG/NER (pas seulement l'éligibilité).
+    Retourne "" si le JSON n'a aucun contenu exploitable -> fallback PDF."""
+    protocol = study.get("protocolSection", {})
+    identification = protocol.get("identificationModule", {})
+    description = protocol.get("descriptionModule", {})
+    conditions = protocol.get("conditionsModule", {})
+    design = protocol.get("designModule", {})
+    arms = protocol.get("armsInterventionsModule", {})
+    eligibility = protocol.get("eligibilityModule", {})
+    outcomes = protocol.get("outcomesModule", {})
+
+    sections = []
+
+    def field(label, value):
+        if value is None or value == "" or value == []:
+            return ""
+        if isinstance(value, list):
+            value = ", ".join(str(item) for item in value)
+        return f"{label}: {value}"
+
+    def add_section(title, lines):
+        clean = [str(l).strip() for l in lines if l is not None and str(l).strip()]
+        if clean:
+            sections.append(f"## {title}\n" + "\n".join(clean))
+
+    add_section("Study identification", [
+        field("NCT ID", identification.get("nctId")),
+        field("Brief title", identification.get("briefTitle")),
+        field("Official title", identification.get("officialTitle")),
+    ])
+    add_section("Study description", [
+        field("Brief summary", description.get("briefSummary")),
+        field("Detailed description", description.get("detailedDescription")),
+    ])
+    add_section("Conditions and keywords", [
+        field("Conditions", conditions.get("conditions")),
+        field("Keywords", conditions.get("keywords")),
+    ])
+    design_info = design.get("designInfo", {})
+    add_section("Study design", [
+        field("Study type", design.get("studyType")),
+        field("Phases", design.get("phases")),
+        field("Primary purpose", design_info.get("primaryPurpose")),
+        field("Allocation", design_info.get("allocation")),
+        field("Intervention model", design_info.get("interventionModel")),
+        field("Observational model", design_info.get("observationalModel")),
+    ])
+    intervention_lines = []
+    for idx, itv in enumerate(arms.get("interventions", []), start=1):
+        intervention_lines.extend([
+            field(f"Intervention {idx} type", itv.get("type")),
+            field(f"Intervention {idx} name", itv.get("name")),
+            field(f"Intervention {idx} description", itv.get("description")),
+            field(f"Intervention {idx} arm labels", itv.get("armGroupLabels")),
+        ])
+    add_section("Interventions and treatments", intervention_lines)
+    arm_lines = []
+    for idx, arm in enumerate(arms.get("armGroups", []), start=1):
+        arm_lines.extend([
+            field(f"Arm {idx} label", arm.get("label")),
+            field(f"Arm {idx} type", arm.get("type")),
+            field(f"Arm {idx} description", arm.get("description")),
+            field(f"Arm {idx} intervention names", arm.get("interventionNames")),
+        ])
+    add_section("Study arms", arm_lines)
+    add_section("Eligibility", [
+        field("Sex", eligibility.get("sex")),
+        field("Minimum age", eligibility.get("minimumAge")),
+        field("Maximum age", eligibility.get("maximumAge")),
+        field("Healthy volunteers", eligibility.get("healthyVolunteers")),
+        field("Eligibility criteria", eligibility.get("eligibilityCriteria")),
+    ])
+    outcome_lines = []
+    for otype, olist in [("Primary outcome", outcomes.get("primaryOutcomes", [])),
+                         ("Secondary outcome", outcomes.get("secondaryOutcomes", []))]:
+        for idx, o in enumerate(olist, start=1):
+            outcome_lines.extend([
+                field(f"{otype} {idx} measure", o.get("measure")),
+                field(f"{otype} {idx} description", o.get("description")),
+                field(f"{otype} {idx} time frame", o.get("timeFrame")),
+            ])
+    add_section("Study outcomes", outcome_lines)
+
+    # Garde-fou : au moins un contenu exploitable au-delà de l'identification
+    has_useful_content = bool(
+        description.get("briefSummary")
+        or description.get("detailedDescription")
+        or conditions.get("conditions")
+        or arms.get("interventions")
+        or eligibility.get("eligibilityCriteria")
+        or outcomes.get("primaryOutcomes")
+        or outcomes.get("secondaryOutcomes")
+    )
+    if not has_useful_content:
+        return ""
+    return "\n\n".join(sections)
+
+
 def build_task(study, force_pdf):
-    """Décide, pour une étude déjà récupérée, si on l'envoie en 'text' ou 'pdf'."""
+    """Construit la tâche envoyée au backend. En mode 'text', on envoie le
+    document complet reconstruit depuis le JSON (build_rag_text). Le PDF sert
+    de fallback si l'utilisateur le force ou si le JSON n'a aucun contenu utile."""
     nct_id = _safe_get(study, "protocolSection", "identificationModule", "nctId")
-    if force_pdf:
-        docs = _safe_get(study, "documentSection", "largeDocumentModule", "largeDocs") or []
-        if any(str(d.get("filename", "")).lower().endswith(".pdf") for d in docs):
-            return {"type": "pdf", "nct_id": nct_id}
-    elig = _safe_get(study, "protocolSection", "eligibilityModule", "eligibilityCriteria") or ""
-    if len(elig) > 100:
-        return {"type": "text", "nct_id": nct_id, "text": elig}
+    docs = _safe_get(study, "documentSection", "largeDocumentModule", "largeDocs") or []
+    has_pdf = any(str(d.get("filename", "")).lower().endswith(".pdf") for d in docs)
+
+    if force_pdf and has_pdf:
+        return {"type": "pdf", "nct_id": nct_id}
+
+    rag_text = build_rag_text(study)
+    if rag_text:
+        return {"type": "text", "nct_id": nct_id, "text": rag_text}
+
     return {"type": "pdf", "nct_id": nct_id}
 
 
@@ -343,6 +448,7 @@ with tab1:
             st.session_state.analysis_done = False
             st.session_state.latest_results = []
             st.session_state.extracted_docs = []
+            st.session_state.selected_ncts = []
             st.success(f"✅ {len(kept)} essai(s) récupéré(s) en {elapsed:.1f}s. "
                        "Va dans l'onglet « 📑 Summary table ».")
 
@@ -357,7 +463,9 @@ with tab2:
     else:
         rows = [study_summary_row(s) for s in st.session_state.found_studies]
         df_sum = pd.DataFrame(rows)
-        df_sum.insert(0, "Analyser", False)
+        # Pré-coche les études déjà sélectionnées (restaurées au refresh)
+        _prev = set(st.session_state.get("selected_ncts", []))
+        df_sum.insert(0, "Analyser", df_sum["NCT_ID"].isin(_prev))
 
         st.caption("Coche les études à envoyer au modèle, puis clique « Analyser (GPU) ».")
         edited = st.data_editor(
@@ -368,6 +476,7 @@ with tab2:
             key="summary_editor")
 
         selected_ncts = edited.loc[edited["Analyser"] == True, "NCT_ID"].tolist()
+        st.session_state.selected_ncts = selected_ncts
 
         st.download_button("📥 Exporter la table (CSV)",
                            df_sum.drop(columns=["Analyser"]).to_csv(index=False, sep=';').encode('utf-8-sig'),
